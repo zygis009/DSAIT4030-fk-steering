@@ -5,19 +5,30 @@ from flax.training.common_utils import shard
 import matplotlib.pyplot as plt
 import time
 from diffusers import FlaxStableDiffusionPipeline
+from diffusers import FlaxDPMSolverMultistepScheduler
 
 # Memory management config
 jax.config.update('jax_platform_name', 'gpu')
 print(f"Default device for inference: {jax.default_backend()}")  
 
+# Configure DPM Solver with Karras noise schedule
+scheduler, scheduler_state = FlaxDPMSolverMultistepScheduler.from_pretrained(
+    "CompVis/stable-diffusion-v1-4",
+    subfolder="scheduler",
+)
+scheduler.config.use_karras_sigmas = True 
+
+# Load SD pipeline with the configured scheduler
 pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
     "CompVis/stable-diffusion-v1-4",
+    scheduler=scheduler,
     revision="bf16",
     dtype=jax.numpy.bfloat16
 )
+params["scheduler"] = scheduler_state 
 
+# Config experiment
 prompt = "a photo of an astronaut riding a horse on mars"
-
 prng_seed = jax.random.PRNGKey(0)
 num_inference_steps = 50
 
