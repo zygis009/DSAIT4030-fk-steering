@@ -1,0 +1,75 @@
+import inspect
+from typing import Any, Callable, Dict, List, Optional, Union
+import matplotlib.pyplot as plt
+import time
+from packaging import version
+
+# FK/reward imports - STILL NEEDS TO BE REWRITTEN FOR FLAX
+from fkd_class import FKD
+from rewards import get_reward_function
+
+# Jax related imports   
+import numpy as np
+from flax.jax_utils import replicate
+from flax.training.common_utils import shard
+
+# Difussion imports
+from diffusers import FlaxStableDiffusionPipeline
+from diffusers import FlaxDPMSolverMultistepScheduler
+from diffusers import FlaxUNet2DConditionModel, FlaxAutoencoderKL
+
+from transformers import (
+    CLIPImageProcessor,
+    CLIPTokenizer,
+    CLIPVisionModelWithProjection,
+    FlaxCLIPTextModel
+)
+
+
+def rescale_noise_cfg(noise_cfg, noise_pred_text, guidance_rescale=0.0):
+    """
+    Rescale `noise_cfg` according to `guidance_rescale`. Based on findings of [Common Diffusion Noise Schedules and
+    Sample Steps are Flawed](https://arxiv.org/pdf/2305.08891.pdf). See Section 3.4
+    """
+    std_text = noise_pred_text.std(
+        dim=list(range(1, noise_pred_text.ndim)), keepdim=True
+    )
+    std_cfg = noise_cfg.std(dim=list(range(1, noise_cfg.ndim)), keepdim=True)
+    # rescale the results from guidance (fixes overexposure)
+    noise_pred_rescaled = noise_cfg * (std_text / std_cfg)
+    # mix with the original results from guidance by factor guidance_rescale to avoid "plain looking" images
+    noise_cfg = (
+        guidance_rescale * noise_pred_rescaled + (1 - guidance_rescale) * noise_cfg
+    )
+    return noise_cfg
+
+
+class FlaxFKDStableDiffusionPipeline(FlaxStableDiffusionPipeline):
+    def __init__(
+        self,
+        tokenizer: CLIPTokenizer,
+        text_encoder: FlaxCLIPTextModel,
+        unet: FlaxUNet2DConditionModel,
+        scheduler: FlaxDPMSolverMultistepScheduler,
+        vae: FlaxAutoencoderKL,
+        **kwargs,
+    ):
+        super().__init__(
+            tokenizer=tokenizer,
+            text_encoder=text_encoder,
+            unet=unet,
+            scheduler=scheduler,
+            vae=vae,
+            **kwargs
+        )
+    
+    def _generate(
+        self,
+        prompt_ids: jnp.ndarray,
+        params: Union[Dict, FrozenDict],
+        prng_seed: jax.random.KeyArray,
+        num_inference_steps: int,
+        fkd_args: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ):
+        # FKD integration will go here

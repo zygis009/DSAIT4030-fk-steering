@@ -56,7 +56,7 @@ print(f"Image generation took: {generation_time:.2f} seconds (after initial load
 # Process and display images
 images = pipeline.numpy_to_pil(np.asarray(images.reshape((num_samples,) + images.shape[-3:])))
 if images:
+    images[0].save("output.png")
     plt.imshow(images[0])
     plt.axis('off')
     plt.show()
-    images[0].save("output.png")
