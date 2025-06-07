@@ -4,7 +4,9 @@ import jax
 import numpy as np
 from diffusers import FlaxDDIMScheduler
 from fkd_pipeline_sd14_flax import FKDFlaxStableDiffusion
-from plot_helper import save_image_grid
+from plot_helper import save_image_grid, create_output_dir, config_hash
+import json
+
 # 1.  Load pipeline & scheduler (single-GPU)
 scheduler, sched_state = FlaxDDIMScheduler.from_pretrained(
     "CompVis/stable-diffusion-v1-4", subfolder="scheduler", dtype=jax.numpy.float16
@@ -25,8 +27,8 @@ PROMPT          = "a photo of a brown knife and a blue donut"
 
 fkd_cfg = dict(
     use_smc            = True,
-    potential_type     = "diff",        # or "diff", "add"
-    lmbda              = 2.0,          # paper default
+    potential_type     = "max",        # or "diff", "add"
+    lmbda              = 10,          # paper default
     num_particles      = NUM_PARTICLES,
     time_steps         = TIME_STEPS,
     adaptive_resampling= True,
@@ -38,14 +40,13 @@ fkd_cfg = dict(
 )
 
 # 3.  Deterministic seeding  (JAX)
-SEED = 0
+SEED = 42
 prng = jax.random.PRNGKey(SEED)
 
 
 # 4.  Prepare prompt IDs and run
 prompt_ids = pipe.prepare_inputs([PROMPT] * NUM_PARTICLES)
-
-print("Generating …")
+print("Generating images …")
 out = pipe(
     prompt_ids,
     params,
@@ -58,11 +59,20 @@ out = pipe(
 
 # 5.  Save / show results
 images = pipe.numpy_to_pil(np.asarray(out.images))
-os.makedirs("outputs", exist_ok=True)
-for i, img in enumerate(images):
-    fname = f"outputs/fkd_{i}.png"
-    img.save(fname)
-    print("Saved:", fname)
-    
-# 6.  Composite image of all final particles
-save_image_grid(images, "outputs/fkd_grid.png")
+# Full experiment config
+experiment_config = {
+    "seed": SEED,
+    "prompt": PROMPT,
+    "pipeline": "CompVis/stable-diffusion-v1-4",
+    "revision": "bf16",
+    "dtype": "float16",
+    "jit": False,
+    **fkd_cfg
+}
+# Save config
+output_dir = create_output_dir(SEED, experiment_config)
+with open(output_dir / "config.json", "w") as f:
+    json.dump(experiment_config, f, indent=2)
+# Save images
+save_image_grid(images, output_dir / "fkd_results.png")
+print(f"Saved grid: {output_dir / 'fkd_results.png'}")
