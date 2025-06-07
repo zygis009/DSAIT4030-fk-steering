@@ -1,0 +1,19 @@
+{
+    "seed": 0,
+    "output_dir": "output",
+    "eta": 1.0,
+    "metrics_to_compute": "ImageReward",
+    "prompt_path": "./prompt_files/image_rewards_benchmark.json",
+    "model_name": "stable-diffusion-v1-4",
+    "lmbda": 2.0,
+    "num_particles": 4,
+    "adaptive_resampling": true,
+    "resample_frequency": 20,
+    "time_steps": 10,
+    "potential_type": "max",
+    "resampling_t_start": 20,
+    "resampling_t_end": 50,
+    "guidance_reward_fn": "ImageReward",
+    "use_smc": true,
+    "num_inference_steps": 10
+}

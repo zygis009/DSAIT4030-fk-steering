@@ -5,18 +5,18 @@ from flax.training.common_utils import shard
 import matplotlib.pyplot as plt
 import time
 from diffusers import FlaxStableDiffusionPipeline
-from diffusers import FlaxDPMSolverMultistepScheduler
+from diffusers import FlaxDDIMScheduler
 
 # Memory management config
 jax.config.update('jax_platform_name', 'gpu')
 print(f"Default device for inference: {jax.default_backend()}")  
 
-# Configure DPM Solver with Karras noise schedule
-scheduler, scheduler_state = FlaxDPMSolverMultistepScheduler.from_pretrained(
+# Configure DDIM Solver
+scheduler, scheduler_state = FlaxDDIMScheduler.from_pretrained(
     "CompVis/stable-diffusion-v1-4",
     subfolder="scheduler",
+    dtype=jax.numpy.bfloat16
 )
-scheduler.config.use_karras_sigmas = True 
 
 # Load SD pipeline with the configured scheduler
 pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
@@ -28,7 +28,7 @@ pipeline, params = FlaxStableDiffusionPipeline.from_pretrained(
 params["scheduler"] = scheduler_state 
 
 # Config experiment
-prompt = "a photo of an astronaut riding a horse on mars"
+prompt = "a photo of a brown knife and a blue donut"
 prng_seed = jax.random.PRNGKey(0)
 num_inference_steps = 50
 
@@ -41,11 +41,6 @@ prompt_ids = pipeline.prepare_inputs(prompt)
 params = replicate(params)
 prng_seed = jax.random.split(prng_seed, num_samples)
 prompt_ids = shard(prompt_ids)
-
-# Initial run to load model parameters into GPU memory
-print("Running initial model parameters into GPU memory...")
-_ = pipeline(prompt_ids, params, prng_seed, 1, jit=True)  # Use 1 step to load model parameters
-print("Model loaded into GPU memory. Starting generation...")
 
 # Time the second generation
 start_time = time.time()
