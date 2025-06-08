@@ -50,6 +50,7 @@ class FlaxFKD:
         reward_fn: Callable[[jnp.ndarray], jnp.ndarray],
         reward_min_value: float = 0.0,
         latent_to_decode_fn: Callable[[jnp.ndarray], jnp.ndarray] = lambda x: x,
+        dtype: jnp.dtype = jnp.float32,
         **kwargs,
     ) -> None:
         # Initialize hyperparameters and functions
@@ -67,6 +68,7 @@ class FlaxFKD:
         self.latent_to_decode_fn = latent_to_decode_fn
 
         self.reward_min_value = reward_min_value
+        self.dtype = dtype
         
         # Determine the fixed interval for resampling checks (can be done once)
         self._resampling_interval = jnp.append(jnp.arange(
@@ -75,8 +77,8 @@ class FlaxFKD:
 
     def init_state(self, prng_key: jax.random.PRNGKey) -> FlaxFKDState:
         return FlaxFKDState(
-            population_rs=jnp.ones(self.num_particles, dtype=jnp.float32) * self.reward_min_value,
-            product_of_potentials=jnp.ones(self.num_particles, dtype=jnp.float32),
+            population_rs=jnp.ones(self.num_particles, dtype=self.dtype) * self.reward_min_value,
+            product_of_potentials=jnp.ones(self.num_particles, dtype=self.dtype),
             prng_key=prng_key
         )
     
@@ -132,8 +134,7 @@ class FlaxFKD:
                 )
     
             w = jnp.nan_to_num(jnp.clip(w, 0, 1e10), nan=0.0)
-            jax.debug.print("Candidates: {rs_candidates}; weights: {w}", rs_candidates=rs_candidates, w=w)
-            # return current_fkd_state, latents, None
+
             adaptive_resample = self.adaptive_resampling | (sampling_idx == self.last_sampling_idx)
 
             normalized_w = w / jnp.sum(w)
@@ -183,7 +184,7 @@ class FlaxFKD:
                 product_of_potentials=new_product_of_potentials, 
                 prng_key=key
             )
-            return new_fkd_state, resampled_latents, resampled_images
+            return new_fkd_state, resampled_latents, None # resampled_images (not returned since not used after resample function called, and since jax.lax.cond expects same output signature)
 
         # Check if resampling interval condition is met
         return jax.lax.cond(

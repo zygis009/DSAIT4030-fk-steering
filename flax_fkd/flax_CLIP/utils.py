@@ -48,6 +48,7 @@ class FlaxCLIPScore(nn.Module):
         else:
             raise ValueError(f"Prompt needs to be of type `str` or `jnp.ndarray`. Got {type(prompts)}")
         text_features = self.clip.get_text_features(input_ids)
+        text_features = text_features / jnp.maximum(jnp.linalg.norm(text_features, ord=2.0, axis=1, keepdims=True), 1e-12)
 
         # Image encoding
         if isinstance(images, Image.Image):
@@ -55,15 +56,12 @@ class FlaxCLIPScore(nn.Module):
         elif isinstance(images, str):
             pixel_values = self.image_processor(images=[Image.open(images)], return_tensors="jax").pixel_values
         elif isinstance(images, jnp.ndarray):
-            # define params for jnp.ndarray image preprocessing
-            CLIP_CROP_SIZE = 224
-            OPENAI_CLIP_MEAN = jnp.array([0.48145466, 0.4578275, 0.40821073], dtype=self.dtype)
-            OPENAI_CLIP_STD = jnp.array([0.26862954, 0.26130258, 0.27577711], dtype=self.dtype)
-            pixel_values = jax_clip_preprocess(images, CLIP_CROP_SIZE, OPENAI_CLIP_MEAN, OPENAI_CLIP_STD)
+            pixel_values = jax_clip_preprocess(images)
         else:
             raise ValueError(f"Image needs to be of type `Pil.Image.Image`, `str` or `jnp.ndarray`. Got {type(images)}")
         
         image_features = self.clip.get_image_features(pixel_values)
+        image_features = image_features / jnp.maximum(jnp.linalg.norm(image_features, ord=2.0, axis=1, keepdims=True), 1e-12)
 
         rewards = jnp.sum(jnp.multiply(text_features, image_features), axis=1, keepdims=True)
 
@@ -72,12 +70,10 @@ class FlaxCLIPScore(nn.Module):
 
         return rewards.squeeze()
 
-@partial(jax.jit, static_argnums=(1, 2, 3, 4, 5, 6, 7))
+@partial(jax.jit, static_argnums=(1, 2, 3, 4, 5))
 def jax_clip_preprocess(
     images: jnp.ndarray,
     target_size: int = 224,
-    latent_means: jnp.ndarray = jnp.array([0.48145466, 0.4578275, 0.40821073], dtype=jnp.float32),
-    latent_stds: jnp.ndarray = jnp.array([0.26862954, 0.26130258, 0.27577711], dtype=jnp.float32),
     do_resize: bool = True,
     do_center_crop: bool = True,
     do_normalize: bool = True,
@@ -106,6 +102,8 @@ def jax_clip_preprocess(
         )
 
     if do_normalize:
+        latent_means = jnp.array([0.48145466, 0.4578275, 0.40821073], dtype=images.dtype)
+        latent_stds = jnp.array([0.26862954, 0.26130258, 0.27577711], dtype=images.dtype)
         mean_reshaped = latent_means.reshape((1, 1, 1, -1))
         std_reshaped = latent_stds.reshape((1, 1, 1, -1))
         images = (images - mean_reshaped) / std_reshaped

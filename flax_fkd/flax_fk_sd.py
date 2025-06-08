@@ -1,7 +1,6 @@
 import numpy as np
 import jax
 import jax.numpy as jnp
-from jax import pmap
 
 import warnings
 from functools import partial
@@ -39,7 +38,6 @@ from diffusers.pipelines.stable_diffusion import (
 )
 
 from .flax_fk_class import FlaxFKD
-from .rewards import get_reward_function
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
 
@@ -270,6 +268,10 @@ class FlaxStableDiffusionPipeline(FlaxDiffusionPipeline):
             raise ValueError(f"`height` and `width` have to be divisible by 8 but are {height} and {width}.")
 
         # get prompt text embeddings
+        # colapse leading dimensions (can be (1, num_batch, seq_length) after sharding)
+        if prompt_ids.ndim > 2:
+            prompt_ids = prompt_ids.reshape(-1, prompt_ids.shape[-1])
+        
         prompt_embeds = self.text_encoder(prompt_ids, params=params["text_encoder"])[0]
 
         # TODO: currently it is assumed `do_classifier_free_guidance = guidance_scale > 1.0`
@@ -321,6 +323,7 @@ class FlaxStableDiffusionPipeline(FlaxDiffusionPipeline):
                     x  #latents_x0
                 ),
                 reward_fn=apply_reward_fn,
+                dtype=self.dtype,
                 **fkd_args,
             )
             initial_fkd_state = fkd.init_state(prng_seed)
@@ -380,10 +383,14 @@ class FlaxStableDiffusionPipeline(FlaxDiffusionPipeline):
 
         # scale and decode the image latents with vae
         latents = 1 / self.vae.config.scaling_factor * latents
-        image = self.vae.apply({"params": params["vae"]}, latents, method=self.vae.decode).sample
+        images = self.vae.apply({"params": params["vae"]}, latents, method=self.vae.decode).sample
 
-        image = (image / 2 + 0.5).clip(0, 1).transpose(0, 2, 3, 1)
-        return image
+        # Return only the best image
+        final_rewards = apply_reward_fn((images / 2 + 0.5).clip(0, 1))
+        best_image = images[jnp.argmax(final_rewards)]
+        
+        best_image = (jnp.expand_dims(best_image, axis=0) / 2 + 0.5).clip(0, 1).transpose(0, 2, 3, 1)
+        return best_image
 
     @replace_example_docstring(EXAMPLE_DOC_STRING)
     def __call__(
