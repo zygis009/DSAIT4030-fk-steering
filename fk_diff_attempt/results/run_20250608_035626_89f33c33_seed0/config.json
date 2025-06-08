@@ -1,10 +1,11 @@
 {
-  "seed": 42,
+  "seed": 0,
   "prompt": "a photo of a brown knife and a blue donut",
   "pipeline": "CompVis/stable-diffusion-v1-4",
   "revision": "bf16",
   "dtype": "float16",
   "jit": false,
+  "width x height": 512,
   "use_smc": true,
   "potential_type": "max",
   "lmbda": 10,

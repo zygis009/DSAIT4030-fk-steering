@@ -32,6 +32,7 @@ class FKD:
         reward_fn,                     # images → np.float32[N] or jnp.ndarray
         reward_min_value    : float = 0.,
         latent_to_decode_fn = lambda x: x,   # latents → images
+        prng_key            : jax.Array,
     ):
         self.ptype  = PotentialType(potential_type)
         self.lmbda  = float(lmbda)
@@ -48,6 +49,7 @@ class FKD:
 
         self.population_r       = jnp.ones(self.N) * reward_min_value
         self.prod_potentials    = jnp.ones(self.N)
+        self._global_key        = prng_key
 
     # Resample using a reward model and potential function
     def resample(
@@ -88,20 +90,20 @@ class FKD:
 
         # Adaptive resampling via ESS
         do_resample = True
-        if self.adapt and sampling_idx != self.timesteps - 1:
+        if self.adapt or sampling_idx == self.timesteps - 1:
             ess = 1.0 / jnp.sum(p ** 2)
             do_resample = ess < 0.5 * self.N   # same threshold as paper
 
         if do_resample:
-            key = jax.random.PRNGKey(sampling_idx + 1234)
+            key = jax.random.fold_in(self._global_key, sampling_idx)
             idx = jax.random.choice(key, self.N, (self.N,), replace=True, p=p)
 
             latents  = latents[idx]
             rewards  = rewards[idx]
             self.prod_potentials = self.prod_potentials[idx] * w[idx]
+            self.population_r = rewards
         # else: keep latents untouched, just update potentials state
         else:
-            self.prod_potentials = self.prod_potentials * w
+            self.population_r = rewards
 
-        self.population_r = rewards
         return latents, None

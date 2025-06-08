@@ -224,6 +224,7 @@ class FKDFlaxStableDiffusion(_Base):
                 time_steps          = num_inference_steps,
                 reward_fn           = _reward,
                 latent_to_decode_fn = lambda z: _latents_to_pil(self, z),
+                prng_key            = prng_seed,
             )
         else:
             fkd = None

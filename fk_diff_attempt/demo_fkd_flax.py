@@ -7,6 +7,9 @@ from fkd_pipeline_sd14_flax import FKDFlaxStableDiffusion
 from plot_helper import save_image_grid, create_output_dir, config_hash
 import json
 
+print("JAX devices:", jax.devices())
+print("JAX default backend:", jax.default_backend())
+
 # 1.  Load pipeline & scheduler (single-GPU)
 scheduler, sched_state = FlaxDDIMScheduler.from_pretrained(
     "CompVis/stable-diffusion-v1-4", subfolder="scheduler", dtype=jax.numpy.float16
@@ -42,7 +45,7 @@ fkd_cfg = dict(
 # 3.  Deterministic seeding  (JAX)
 SEED = 42
 prng = jax.random.PRNGKey(SEED)
-
+WIDTH_x_HEIGHT = 512 # 512 default, 256 because vram
 
 # 4.  Prepare prompt IDs and run
 prompt_ids = pipe.prepare_inputs([PROMPT] * NUM_PARTICLES)
@@ -52,6 +55,8 @@ out = pipe(
     params,
     prng,
     num_inference_steps=TIME_STEPS,
+    height=WIDTH_x_HEIGHT,
+    width=WIDTH_x_HEIGHT,
     jit=False,                    # FK-Steering needs the Python loop (so we cant use JIT here)
     fkd_args=fkd_cfg,
     prompts=[PROMPT] * NUM_PARTICLES,
@@ -67,6 +72,7 @@ experiment_config = {
     "revision": "bf16",
     "dtype": "float16",
     "jit": False,
+    "width x height": WIDTH_x_HEIGHT,
     **fkd_cfg
 }
 # Save config
@@ -75,4 +81,3 @@ with open(output_dir / "config.json", "w") as f:
     json.dump(experiment_config, f, indent=2)
 # Save images
 save_image_grid(images, output_dir / "fkd_results.png")
-print(f"Saved grid: {output_dir / 'fkd_results.png'}")
