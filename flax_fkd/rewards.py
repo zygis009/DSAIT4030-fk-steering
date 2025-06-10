@@ -1,6 +1,9 @@
+import json
+import jax
 import jax.numpy as jnp
 from .flax_ImageReward import rm_load
 from .flax_CLIP import FlaxCLIPScore
+from .GenEval import GenEval
 
 # Stores the reward models
 REWARDS_DICT = {
@@ -39,9 +42,14 @@ def do_image_reward(*, images, prompts, dtype=jnp.float32):
 def do_clip_score(*, images, prompts, dtype=jnp.float32):
     global REWARDS_DICT
     if REWARDS_DICT["Clip-Score"] is None:
-        REWARDS_DICT["Clip-Score"] = FlaxCLIPScore(dtype=dtype)
+        model = FlaxCLIPScore(dtype=dtype)
+        dummy_image_input = jnp.zeros((1, 3, 512, 512), dtype=dtype)
+        params = model.init(jax.random.PRNGKey(0), "", dummy_image_input)
+        REWARDS_DICT["Clip-Score"] = (model, params)
+
+    model, params = REWARDS_DICT["Clip-Score"]
     clip_result = [
-        REWARDS_DICT["Clip-Score"](prompt, images[i])
+        model.apply(params, images=images[i], prompts=prompt)
         for i, prompt in enumerate(prompts)
     ]
     return clip_result
@@ -49,3 +57,24 @@ def do_clip_score(*, images, prompts, dtype=jnp.float32):
 # Compute LLM-grading
 def do_llm_grading(*, images, prompts, metric_to_chase="overall_score", dtype=jnp.float32):
     raise NotImplementedError("LLM grading reward has not been implemented yet")
+
+def do_geneval_score(*, image_names, images, metadata):
+    # If metadata path provided, read file
+    if isinstance(metadata, str):
+        if metadata.endswith(".json"):
+            with open(metadata, "r") as f:
+                metadata = json.load(f)
+        else:
+            assert metadata.endswith(".jsonl")
+            with open(metadata, "r") as f:
+                metadata = [json.loads(line) for line in f]
+    # Make list
+    if not isinstance(metadata, list):
+        metadata = [metadata]
+
+    # Otherwise, assume correct data format
+    genEval = GenEval()
+    score = genEval.evaluate_many(image_names=image_names, images=images, metadatas=metadata)
+
+    return score
+    

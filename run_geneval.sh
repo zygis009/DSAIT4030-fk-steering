@@ -1,0 +1,1 @@
+python ./flax_fkd/GenEval/score.py "./flax_fkd/output" --outfile="./flax_fkd/output/results.jsonl"
