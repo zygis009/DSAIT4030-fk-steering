@@ -1,9 +1,7 @@
 import argparse
 import json
 import os
-import re
 import sys
-import time
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -49,10 +47,10 @@ class ImageCrops(torch.utils.data.Dataset):
         return (self._transform(image), 0)
 
 class GenEval:
-    def __init__(self, mask2former_path: str = None, options: any = None):
+    def __init__(self, mask2former_path: str = None, object_names_path: str = None, options: any = None):
         self.options = options if options is not None else {}
 
-        self._load_models(checkpoint_path=mask2former_path)
+        self._load_models(checkpoint_path=mask2former_path, object_names_path=object_names_path)
 
         self.threshold = float(self.options.get('threshold', 0.3))
         self.counting_threshold = float(self.options.get('counting_threshold', 0.9))
@@ -60,7 +58,7 @@ class GenEval:
         self.nms_threshold = float(self.options.get('max_overlap', 1.0))
         self.position_threshold = float(self.options.get('position_threshold', 0.1))
 
-    def _load_models(self, checkpoint_path: str = None):
+    def _load_models(self, checkpoint_path: str = None, object_names_path: str = None):
         if checkpoint_path is None:
             checkpoint_path = os.path.join(
                 os.path.dirname(__file__), 
@@ -75,8 +73,10 @@ class GenEval:
         clip_arch = "ViT-L-14"
         self.clip_model, _, self.transform = open_clip.create_model_and_transforms(clip_arch, pretrained="openai", device=DEVICE)
         self.tokenizer = open_clip.get_tokenizer(clip_arch)
-
-        with open(os.path.join(os.path.dirname(__file__), "prompts/object_names.txt")) as cls_file:
+        
+        if object_names_path is None:
+            object_names_path = os.path.join(os.path.dirname(__file__), "prompts/object_names.txt")
+        with open(object_names_path) as cls_file:
             self.classnames = [line.strip() for line in cls_file]
 
 
