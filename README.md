@@ -1,5 +1,8 @@
 # DSAIT4030-fk-steering
-Reproduction of the FK diffusion steering paper for TU Delft DSAIT4030 Generative Modeling course
+Reproduction of the [FK diffusion steering paper](https://arxiv.org/abs/2501.06848) for TU Delft DSAIT4030 Generative Modeling course
+
+## Project overview
+The main code can be found in the `flax_fkd` folder, the `flax_fkd\experiment_notebooks` folder contain notebooks with the whole pipeline for the reproduction of the metrics and general code. The `archive` folder contains older codebases and attempts.
 
 ## Setup
 First install the requirements on your system or in a virtual python environment:
