@@ -1,0 +1,20 @@
+# JAX and Flax (adjust cuda version as needed for your system)
+jax[cuda12]
+flax
+
+# Diffusers and Transformers
+diffusers[flax]
+transformers
+# Reward Models and Dependencies
+torch
+torchvision
+-e git+https://github.com/THUDM/ImageReward.git@2ca71bac4ed86b922fe53ddaec3109fe94d45fd3#egg=image_reward
+hpsv2==1.2.0
+ftfy
+scipy
+
+# Utilities
+matplotlib
+numpy==1.26.3
+Pillow
+tqdm
